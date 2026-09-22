@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>여유길 (WayFree) - 혼잡도 예측 및 맞춤 동선 추천</title>
+  <!-- Chart.js (혼잡도 추이 그래프용 라이브러리) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --primary-color: #2563eb;
+      --bg-color: #f8fafc;
+      --card-bg: #ffffff;
+      --text-main: #0f172a;
+      --text-sub: #64748b;
+      --status-good: #10b981;
+      --status-warn: #f59e0b;
+      --status-danger: #ef4444;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: var(--bg-color); color: var(--text-main); display: flex; justify-content: center; padding: 20px; }
+    .container { width: 100%; max-width: 480px; background: var(--card-bg); border-radius: 20px; padding: 24px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05); }
+
+    /* Header */
+    header { text-align: center; margin-bottom: 24px; }
+    header h1 { color: var(--primary-color); font-size: 26px; font-weight: 800; }
+    header p { color: var(--text-sub); font-size: 14px; margin-top: 4px; }
+
+    /* STEP 1 & 2 Form */
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; font-size: 14px; font-weight: 700; margin-bottom: 8px; }
+    .input-box { width: 100%; padding: 14px; border: 1.5px solid #e2e8f0; border-radius: 12px; font-size: 15px; outline: none; transition: 0.2s; }
+    .input-box:focus { border-color: var(--primary-color); }
+
+    .quick-btn {
+      width: 100%; margin-top: 8px; padding: 12px; background-color: #eff6ff; color: var(--primary-color);
+      border: 1px solid #bfdbfe; border-radius: 12px; font-weight: 700; cursor: pointer; transition: 0.2s;
+    }
+    .quick-btn:hover { background-color: #dbeafe; }
+
+    .search-btn {
+      width: 100%; padding: 16px; background-color: var(--primary-color); color: white;
+      border: none; border-radius: 14px; font-size: 16px; font-weight: 700; cursor: pointer; margin-top: 10px;
+    }
+
+    /* Result Section */
+    #result-section { display: none; margin-top: 32px; border-top: 2px dashed #e2e8f0; padding-top: 24px; }
+    .score-badge { text-align: center; padding: 20px; border-radius: 16px; color: white; margin-bottom: 20px; }
+    .score-number { font-size: 48px; font-weight: 900; }
+    .score-label { font-size: 18px; font-weight: 700; margin-top: 4px; }
+
+    /* Action Buttons (61 이상일 때) */
+    .action-group { display: none; gap: 10px; margin-bottom: 24px; }
+    .action-btn {
+      flex: 1; padding: 14px; border-radius: 12px; border: none; font-weight: 700; font-size: 14px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    .btn-parking { background-color: #f1f5f9; color: #1e293b; }
+    .btn-alt { background-color: #ecfdf5; color: #047857; }
+
+    /* Chart Container */
+    .chart-container { margin-top: 20px; }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <header>
+      <h1>🌿 여유길</h1>
+      <p>방문할 장소와 시간을 정하고 여유로운 동선을 찾으세요</p>
+    </header>
+
+    <!-- 1단계: 검색 및 시간 선택 -->
+    <div class="form-group">
+      <label>1. 목적지 검색</label>
+      <input type="text" id="destination" class="input-box" placeholder="예: 여의도 한강공원, 성수동 카페거리">
+    </div>
+
+    <div class="form-group">
+      <label>2. 방문 예정 시간</label>
+      <input type="datetime-local" id="visit-time" class="input-box">
+      <button type="button" class="quick-btn" onclick="setQuickTime()">⚡ 30분 이내 방문 (지금 출발)</button>
+    </div>
+
+    <button type="button" class="search-btn" onclick="predictCongestion()">혼잡도 예측하기</button>
+
+    <!-- 2단계: 예측 결과 화면 -->
+    <div id="result-section">
+      <div id="score-card" class="score-badge">
+        <div class="score-number" id="score-val">0</div>
+        <div class="score-label" id="score-txt">-</div>
+      </div>
+
+      <!-- 혼잡도 61 이상 시 활성화되는 이원화 버튼 -->
+      <div id="action-buttons" class="action-group">
+        <button class="action-btn btn-parking" onclick="alert('주변 추천 주차장 안내 레이어를 엽니다.')">🅿️ 근처 주차장</button>
+        <button class="action-btn btn-alt" onclick="alert('3km 내 덜 붐비는 대안 장소를 추천합니다.')">🌿 덜 붐비는 장소</button>
+      </div>
+
+      <!-- 전후 2시간 추이 그래프 -->
+      <div class="chart-container">
+        <canvas id="trendChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let myChart = null;
+
+    // '30분 이내 방문' 버튼 클릭 시 현재 시간 + 30분 세팅
+    function setQuickTime() {
+      const now = new Date();
+      now.setMinutes(now.getMinutes() + 30);
+      now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+      document.getElementById('visit-time').value = now.toISOString().slice(0, 16);
+    }
+
+    // 혼잡도 예측 로직 (데모용 시뮬레이터)
+    function predictCongestion() {
+      const dest = document.getElementById('destination').value;
+      if (!dest) {
+        alert('목적지를 입력해주세요!');
+        return;
+      }
+
+      // 시뮬레이션용 혼잡도 점수 생성 (40 ~ 95 사이)
+      const score = Math.floor(Math.random() * 56) + 40; 
+      
+      const resultSec = document.getElementById('result-section');
+      const scoreCard = document.getElementById('score-card');
+      const scoreVal = document.getElementById('score-val');
+      const scoreTxt = document.getElementById('score-txt');
+      const actionBtns = document.getElementById('action-buttons');
+
+      resultSec.style.display = 'block';
+      scoreVal.innerText = score;
+
+      // 혼잡도 단계별 디자인 & 문구 조건문
+      if (score <= 30) {
+        scoreCard.style.backgroundColor = 'var(--status-good)';
+        scoreTxt.innerText = '원활 (여유로움)';
+      } else if (score <= 60) {
+        scoreCard.style.backgroundColor = 'var(--status-warn)';
+        scoreTxt.innerText = '보통 (일반적인 혼잡)';
+      } else {
+        scoreCard.style.backgroundColor = 'var(--status-danger)';
+        scoreTxt.innerText = score >= 81 ? '매우 혼잡 (주차 난항 예상)' : '혼잡 (주차 주의)';
+      }
+
+      // ★ 핵심 로직: 혼잡도 61 이상 시 이원화 버튼 활성화
+      if (score >= 61) {
+        actionBtns.style.display = 'flex';
+      } else {
+        actionBtns.style.display = 'none';
+      }
+
+      // 그래프 업데이트
+      renderChart(score);
+    }
+
+    // 그래프 그리기 함수
+    function renderChart(currentScore) {
+      const ctx = document.getElementById('trendChart').getContext('2d');
+      
+      if (myChart) myChart.destroy(); // 기존 그래프 삭제 후 재그리기
+
+      myChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: ['-2시간', '-1시간', '방문예정', '+1시간', '+2시간'],
+          datasets: [{
+            label: '혼잡도 추이',
+            data: [
+              Math.max(10, currentScore - 15),
+              Math.max(10, currentScore - 5),
+              currentScore,
+              Math.min(100, currentScore + 10),
+              Math.max(10, currentScore - 20)
+            ],
+            borderColor: '#2563eb',
+            backgroundColor: 'rgba(37, 99, 235, 0.1)',
+            fill: true,
+            tension: 0.3
+          }]
+        },
+        options: {
+          responsive: true,
+          scales: { y: { min: 0, max: 100 } }
+        }
+      });
+    }
+  </script>
+</body>
+</html>
