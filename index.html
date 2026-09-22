@@ -18,23 +18,60 @@
       --danger: #EF4444;
     }
 
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Pretendard", sans-serif; }
-    body { background-color: var(--bg); color: var(--text-main); display: flex; justify-content: center; min-height: 100vh; padding: 20px 12px; }
+    /* 모든 요소에 box-sizing 적용하여 테두리/여백 삐져나옴 방지 */
+    *, *::before, *::after { 
+      box-sizing: border-box; 
+      margin: 0; 
+      padding: 0; 
+      font-family: -apple-system, BlinkMacSystemFont, "Pretendard", sans-serif; 
+    }
     
-    .app-container { width: 100%; max-width: 440px; background: var(--card-bg); border-radius: 24px; padding: 28px 20px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.05); position: relative; overflow: hidden; }
+    body { 
+      background-color: var(--bg); 
+      color: var(--text-main); 
+      display: flex; 
+      justify-content: center; 
+      min-height: 100vh; 
+      padding: 20px 12px; 
+    }
+    
+    .app-container { 
+      width: 100%; 
+      max-width: 440px; 
+      background: var(--card-bg); 
+      border-radius: 24px; 
+      padding: 28px 20px; 
+      box-shadow: 0 20px 25px -5px rgba(0,0,0,0.05); 
+      position: relative; 
+      overflow: hidden; 
+    }
 
     /* Header */
     .header { text-align: center; margin-bottom: 28px; }
     .header h1 { font-size: 24px; font-weight: 800; color: var(--primary); letter-spacing: -0.5px; }
     .header p { font-size: 13px; color: var(--text-sub); margin-top: 4px; }
 
-    /* Step 1: Input Section */
+    /* Step Views */
     .step-view { transition: all 0.3s ease-in-out; }
     .hidden { display: none !important; }
 
-    .input-group { margin-bottom: 20px; }
+    .input-group { margin-bottom: 20px; width: 100%; }
     .input-group label { display: block; font-size: 13px; font-weight: 700; color: var(--text-main); margin-bottom: 8px; }
-    .input-field { width: 100%; padding: 15px; border: 1.5px solid #E2E8F0; border-radius: 14px; font-size: 15px; outline: none; transition: 0.2s; background: #F8FAFC; }
+    
+    /* 삐져나옴 방지 규격 설정 */
+    .input-field { 
+      width: 100%; 
+      max-width: 100%;
+      padding: 14px 15px; 
+      border: 1.5px solid #E2E8F0; 
+      border-radius: 14px; 
+      font-size: 14px; 
+      outline: none; 
+      transition: 0.2s; 
+      background: #F8FAFC; 
+      appearance: none;
+      -webkit-appearance: none;
+    }
     .input-field:focus { border-color: var(--primary); background: #FFF; }
 
     .btn-quick { width: 100%; margin-top: 8px; padding: 12px; background: #EFF6FF; color: var(--primary); border: 1px solid #BFDBFE; border-radius: 12px; font-size: 13px; font-weight: 700; cursor: pointer; }
@@ -98,7 +135,7 @@
     <button class="nav-back" onclick="goToInput()">← 다시 검색하기</button>
     
     <div class="place-title" id="res-place">여의도 한강공원</div>
-    <div class="time-subtitle" id="res-time">2026-09-22 15:00 방문 예정</div>
+    <div class="time-subtitle" id="res-time">방문 예정</div>
 
     <div id="res-card" class="score-card">
       <div class="score-num" id="res-score">78</div>
@@ -146,7 +183,7 @@
     document.getElementById('res-place').innerText = dest;
     document.getElementById('res-time').innerText = timeVal.replace('T', ' ') + ' 방문 예정';
 
-    // 시뮬레이션용 혼잡도 점수 (61점 이상 테스트를 위해 65~90 위주 생성)
+    // 시뮬레이션용 혼잡도 점수 (65~90 생성)
     const score = Math.floor(Math.random() * 30) + 62; 
     
     const card = document.getElementById('res-card');
@@ -167,7 +204,7 @@
     } else {
       card.style.background = 'var(--danger)';
       statusEl.innerText = score >= 81 ? '매우 혼잡 (주차 난항)' : '혼잡 (주차 주의)';
-      actionArea.style.display = 'flex'; // 61 이상 시 활성화
+      actionArea.style.display = 'flex';
     }
 
     // 화면 전환
