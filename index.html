@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>여유길 (WayFree)</title>
+  <title>여유길 (WayFree) - AI 혼잡도 예측</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <!-- 카카오 지도/장소 검색 SDK (JavaScript 키 적용) -->
+  <!-- 카카오 지도/장소 검색 SDK -->
   <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=357b1de1bb5522200ca16786356a3101&libraries=services"></script>
   <style>
     :root {
@@ -47,14 +47,14 @@
       overflow: hidden; 
     }
 
-    .header { text-align: center; margin-bottom: 28px; }
+    .header { text-align: center; margin-bottom: 24px; }
     .header h1 { font-size: 24px; font-weight: 800; color: var(--primary); letter-spacing: -0.5px; }
     .header p { font-size: 13px; color: var(--text-sub); margin-top: 4px; }
 
     .step-view { transition: all 0.3s ease-in-out; }
     .hidden { display: none !important; }
 
-    .input-group { margin-bottom: 20px; width: 100%; }
+    .input-group { margin-bottom: 18px; width: 100%; }
     .input-group label { display: block; font-size: 13px; font-weight: 700; color: var(--text-main); margin-bottom: 8px; }
     
     .input-field { 
@@ -77,7 +77,24 @@
 
     .nav-back { display: flex; align-items: center; gap: 6px; color: var(--text-sub); font-size: 13px; font-weight: 600; cursor: pointer; margin-bottom: 16px; border: none; background: none; }
     .place-title { font-size: 20px; font-weight: 800; text-align: center; margin-bottom: 4px; }
-    .time-subtitle { font-size: 13px; color: var(--text-sub); text-align: center; margin-bottom: 20px; }
+    .time-subtitle { font-size: 13px; color: var(--text-sub); text-align: center; margin-bottom: 12px; }
+
+    /* 날씨 배지 전용 영역 */
+    .weather-badge { 
+      display: inline-flex; 
+      align-items: center; 
+      justify-content: center;
+      gap: 6px; 
+      background: #F0F9FF; 
+      color: #0284C7; 
+      border: 1px solid #BAE6FD; 
+      padding: 6px 14px; 
+      border-radius: 20px; 
+      font-size: 12px; 
+      font-weight: 700; 
+      margin: 0 auto 16px auto; 
+    }
+    .weather-container { text-align: center; }
 
     .score-card { text-align: center; padding: 24px 16px; border-radius: 20px; color: white; margin-bottom: 20px; transition: 0.3s; }
     .score-num { font-size: 52px; font-weight: 900; line-height: 1; }
@@ -103,8 +120,9 @@
     .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
     .modal-title { font-size: 17px; font-weight: 800; }
     .btn-close { border: none; background: #F1F5F9; width: 28px; height: 28px; border-radius: 50%; font-weight: bold; cursor: pointer; }
-    .list-item { padding: 12px; border-bottom: 1px solid #F1F5F9; display: flex; justify-content: space-between; align-items: center; }
+    .list-item { padding: 12px 0; border-bottom: 1px solid #F1F5F9; display: flex; justify-content: space-between; align-items: center; }
     .list-item:last-child { border-bottom: none; }
+    .btn-navi { padding: 8px 12px; background: var(--primary); color: white; border-radius: 10px; font-size: 12px; font-weight: 700; text-decoration: none; }
   </style>
 </head>
 <body>
@@ -131,12 +149,17 @@
     <button type="button" class="btn-submit" onclick="goToResult()">AI 혼잡도 분석 시작</button>
   </div>
 
-  <!-- STEP 2: 결과 전용 화면 -->
+  <!-- STEP 2: 결과 화면 -->
   <div id="step-2" class="step-view hidden">
     <button class="nav-back" onclick="goToInput()">← 다시 검색하기</button>
     
     <div class="place-title" id="res-place">여의도 한강공원</div>
     <div class="time-subtitle" id="res-time">방문 예정</div>
+
+    <!-- 날씨 정보 표시 -->
+    <div class="weather-container">
+      <div class="weather-badge" id="weather-info">🌤️ 날씨 분석 중...</div>
+    </div>
 
     <div id="res-card" class="score-card">
       <div class="score-num" id="res-score">--</div>
@@ -153,7 +176,7 @@
       </div>
     </div>
 
-    <!-- 행동 제안 버튼 (61 이상 시 활성화) -->
+    <!-- 행동 제안 버튼 (혼잡도 높을 시) -->
     <div id="action-area" class="action-container">
       <button class="btn-action btn-parking" onclick="openModal('parking')">🅿️ 근처 주차장</button>
       <button class="btn-action btn-alt" onclick="openModal('alt')">🌿 덜 붐비는 장소</button>
@@ -179,8 +202,11 @@
 
 <script>
   const SEOUL_API_KEY = "6e74516b7170616937374a5655646d";
+  const OPENWEATHER_KEY = "b6907d289e10d714a6e88b30761fae22"; // 오픈 날씨 API Key
+
   let chartInstance = null;
   let currentScore = 50;
+  let currentWeather = { isRain: false, text: '맑음 ☀️' };
 
   function setNowTime() {
     const now = new Date();
@@ -189,28 +215,56 @@
     document.getElementById('time-input').value = now.toISOString().slice(0, 16);
   }
 
-  // AI 혼잡도 예측 엔진 (시간대, 주차장 잔여율, 피드백 가중치 반영)
+  // 실시간 날씨 가져오기 (서울 기준)
+  async function fetchWeatherData() {
+    try {
+      const res = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=Seoul&appid=${OPENWEATHER_KEY}&units=metric&lang=kr`);
+      const data = await res.json();
+      const main = data.weather[0].main.toLowerCase();
+      const temp = Math.round(data.main.temp);
+
+      if (main.includes('rain') || main.includes('drizzle')) {
+        currentWeather = { isRain: true, text: `비 🌧️ (${temp}°C)` };
+      } else if (main.includes('snow')) {
+        currentWeather = { isRain: true, text: `눈 ❄️ (${temp}°C)` };
+      } else if (main.includes('clouds')) {
+        currentWeather = { isRain: false, text: `구름많음 ⛅ (${temp}°C)` };
+      } else {
+        currentWeather = { isRain: false, text: `맑음 ☀️ (${temp}°C)` };
+      }
+    } catch (e) {
+      currentWeather = { isRain: false, text: '맑음 ☀️ (기본예보)' };
+    }
+    document.getElementById('weather-info').innerText = `예상 날씨: ${currentWeather.text}`;
+  }
+
+  // AI 혼잡도 예측 엔진 (시간대, 날씨, 피드백 가중치 반영)
   function calculateAIScore(targetTimeStr) {
-    let baseScore = 40;
+    let baseScore = 45;
     const targetDate = targetTimeStr ? new Date(targetTimeStr) : new Date();
     const hour = targetDate.getHours();
     const isWeekend = targetDate.getDay() === 0 || targetDate.getDay() === 6;
 
-    // 1. 시간대별 가중치 (피크타임 반영)
-    if (hour >= 11 && hour <= 14) baseScore += 25; // 점심 시간
-    else if (hour >= 17 && hour <= 20) baseScore += 30; // 저녁/퇴근 시간
-    else if (hour >= 1 && hour <= 6) baseScore -= 20; // 새벽 시간
+    // 1. 시간대별 가중치
+    if (hour >= 11 && hour <= 14) baseScore += 25; // 점심 피크
+    else if (hour >= 17 && hour <= 20) baseScore += 30; // 저녁 피크
+    else if (hour >= 1 && hour <= 6) baseScore -= 25; // 새벽
 
     // 2. 주말 가중치
     if (isWeekend) baseScore += 15;
 
-    // 3. 랜덤 노이즈 변수 (+-10)
-    baseScore += Math.floor(Math.random() * 20) - 10;
+    // 3. 날씨 보정 (비/눈 오면 야외 방문객 감소)
+    if (currentWeather.isRain) {
+      baseScore -= 25; // 날씨로 인한 감점
+    }
+
+    // 4. 노이즈 변수
+    baseScore += Math.floor(Math.random() * 10) - 5;
 
     return Math.min(99, Math.max(10, baseScore));
   }
 
-  // 서울시 공영주차장 실시간 API 연동 함수
+  // 서울시 공영주차장 실시간 API
   async function fetchSeoulParkingData() {
     try {
       const url = `http://openapi.seoul.go.kr:8088/${SEOUL_API_KEY}/json/GetParkInfo/1/5/`;
@@ -220,7 +274,7 @@
         return data.GetParkInfo.row;
       }
     } catch (e) {
-      console.warn("서울시 API 실시간 불러오기 연동 대기 중 (시뮬레이션 모드 작동)");
+      console.warn("서울시 주차장 API 시뮬레이션 모드 작동");
     }
     return null;
   }
@@ -232,11 +286,14 @@
     document.getElementById('res-place').innerText = dest;
     document.getElementById('res-time').innerText = timeVal.replace('T', ' ') + ' 방문 예정';
 
-    // AI 예측 계산
+    // 1. 날씨 데이터 조회
+    await fetchWeatherData();
+
+    // 2. AI 예측 계산 (날씨 반영)
     currentScore = calculateAIScore(document.getElementById('time-input').value);
     updateScoreUI(currentScore);
 
-    // 화면 전환
+    // 3. 화면 전환
     document.getElementById('step-1').classList.add('hidden');
     document.getElementById('step-2').classList.remove('hidden');
 
@@ -266,12 +323,11 @@
     }
   }
 
-  // 사용자 피드백 반영
   function submitFeedback(delta) {
     currentScore = Math.min(99, Math.max(10, currentScore + delta));
     updateScoreUI(currentScore);
     drawChart(currentScore);
-    alert('제보해 주신 현장 정보가 AI 예측 엔진에 반영되었습니다!');
+    alert('제보해 주신 현장 정보가 AI 예측 엔진에 보정되었습니다!');
   }
 
   function goToInput() {
@@ -289,7 +345,7 @@
         labels: ['-2시간', '-1시간', '예정시간', '+1시간', '+2시간'],
         datasets: [{
           label: '혼잡도 추이',
-          data: [Math.max(10, score - 20), Math.max(10, score - 8), score, Math.min(99, score + 12), Math.max(10, score - 15)],
+          data: [Math.max(10, score - 18), Math.max(10, score - 7), score, Math.min(99, score + 10), Math.max(10, score - 12)],
           borderColor: '#3B82F6',
           backgroundColor: 'rgba(59, 130, 246, 0.1)',
           fill: true,
@@ -303,7 +359,7 @@
     });
   }
 
-  /* Modal Logic (서울시 실시간 데이터 연동 시 모달에 즉시 반영) */
+  /* Modal Logic (카카오맵 길찾기 링크 직접 연동) */
   async function openModal(type) {
     const modal = document.getElementById('modal');
     const title = document.getElementById('modal-title');
@@ -311,31 +367,50 @@
 
     if (type === 'parking') {
       title.innerText = '🅿️ 목적지 인근 주차장 추천';
-      body.innerHTML = '<div style="padding:15px; text-align:center;">실시간 주차장 정보 조회 중...</div>';
+      body.innerHTML = '<div style="padding:15px; text-align:center;">실시간 주차 가능 대수 조회 중...</div>';
       modal.style.display = 'flex';
 
       const realData = await fetchSeoulParkingData();
       if (realData && realData.length > 0) {
         let html = '';
         realData.slice(0, 3).forEach(p => {
+          const naviUrl = `https://map.kakao.com/link/to/${encodeURIComponent(p.PKLT_NM)},37.5255,126.9208`;
           html += `
             <div class="list-item">
-              <div><strong>${p.PKLT_NM}</strong><br><small style="color:#64748B">서울시 실시간 연동</small></div>
-              <span style="color:#10B981; font-weight:700;">${p.NOW_PRK_VHCL_CNT || 0}대 주차 중</span>
+              <div>
+                <strong>${p.PKLT_NM}</strong><br>
+                <small style="color:#64748B">서울시 실시간 연동</small>
+              </div>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span style="color:#10B981; font-weight:700; font-size:12px;">${p.NOW_PRK_VHCL_CNT || 0}대 주차 중</span>
+                <a href="${naviUrl}" target="_blank" class="btn-navi">길찾기</a>
+              </div>
             </div>`;
         });
         body.innerHTML = html;
       } else {
         body.innerHTML = `
-          <div class="list-item"><div><strong>여의도 1공영주차장</strong><br><small style="color:#64748B">320m · 실시간 연동</small></div><span style="color:#10B981; font-weight:700;">14대 여유</span></div>
-          <div class="list-item"><div><strong>여의도 민영주차장</strong><br><small style="color:#64748B">500m · 규모 기반 예측</small></div><span style="color:#F59E0B; font-weight:700;">혼잡 예상</span></div>
+          <div class="list-item">
+            <div><strong>여의도 1공영주차장</strong><br><small style="color:#64748B">320m · 실시간 연동</small></div>
+            <a href="https://map.kakao.com/link/to/여의도1공영주차장,37.5255,126.9208" target="_blank" class="btn-navi">길찾기</a>
+          </div>
+          <div class="list-item">
+            <div><strong>여의도 민영주차장</strong><br><small style="color:#64748B">500m · 규모 기반 예측</small></div>
+            <a href="https://map.kakao.com/link/to/여의도민영주차장,37.5230,126.9220" target="_blank" class="btn-navi">길찾기</a>
+          </div>
         `;
       }
     } else {
       title.innerText = '🌿 덜 붐비는 대체 장소';
       body.innerHTML = `
-        <div class="list-item"><div><strong>선유도 공원</strong><br><small style="color:#64748B">반경 2.1km · 혼잡도 35 (원활)</small></div><button style="padding:6px 12px; background:#ECFDF5; color:#047857; border:none; border-radius:8px; font-weight:700;">선택</button></div>
-        <div class="list-item"><div><strong>양화 한강공원</strong><br><small style="color:#64748B">반경 1.8km · 혼잡도 42 (보통)</small></div><button style="padding:6px 12px; background:#ECFDF5; color:#047857; border:none; border-radius:8px; font-weight:700;">선택</button></div>
+        <div class="list-item">
+          <div><strong>선유도 공원</strong><br><small style="color:#64748B">반경 2.1km · 혼잡도 35 (원활)</small></div>
+          <a href="https://map.kakao.com/link/to/선유도공원,37.5437,126.9002" target="_blank" class="btn-navi" style="background:#10B981;">길찾기</a>
+        </div>
+        <div class="list-item">
+          <div><strong>양화 한강공원</strong><br><small style="color:#64748B">반경 1.8km · 혼잡도 42 (보통)</small></div>
+          <a href="https://map.kakao.com/link/to/양화한강공원,37.5383,126.8961" target="_blank" class="btn-navi" style="background:#10B981;">길찾기</a>
+        </div>
       `;
       modal.style.display = 'flex';
     }
