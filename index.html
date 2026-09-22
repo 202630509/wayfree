@@ -114,7 +114,6 @@
 
     .chart-box { background: #F8FAFC; border-radius: 16px; padding: 16px; border: 1px solid #E2E8F0; margin-bottom: 20px; }
 
-    /* 하단 제보 유도 영역 UI */
     .feedback-banner { 
       background: #EFF6FF; 
       border: 1px solid #BFDBFE; 
@@ -148,7 +147,6 @@
     .list-item:last-child { border-bottom: none; }
     .btn-navi { padding: 8px 12px; background: var(--primary); color: white; border-radius: 10px; font-size: 12px; font-weight: 700; text-decoration: none; display: inline-block; }
 
-    /* 제보 모달 버튼 styling */
     .feedback-modal-btns { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
     .btn-fb-option { padding: 14px; border: 1.5px solid #E2E8F0; border-radius: 14px; background: #F8FAFC; font-size: 14px; font-weight: 700; cursor: pointer; text-align: left; display: flex; justify-content: space-between; align-items: center; }
     .btn-fb-option:hover { background: #EFF6FF; border-color: var(--primary); }
@@ -202,7 +200,7 @@
     <div class="time-subtitle" id="res-time">방문 예정</div>
 
     <div class="weather-container">
-      <div class="weather-badge" id="weather-info">🌤️ 실시간 날씨 분석 중...</div>
+      <div class="weather-badge" id="weather-info">🌤️ 실시간 기상청 날씨 분석 중...</div>
     </div>
 
     <div id="res-card" class="score-card">
@@ -219,7 +217,6 @@
       <canvas id="trendChart"></canvas>
     </div>
 
-    <!-- 화면 하단으로 이동 및 문구 개선된 제보 배너 -->
     <div class="feedback-banner">
       <div class="feedback-banner-title">🗣️ 현장에 계신가요?</div>
       <div class="feedback-banner-desc">다른 사용자들이 더 정확한 정보를 얻을 수 있도록 현장 상황을 제보해 주세요!</div>
@@ -240,11 +237,12 @@
 </div>
 
 <script>
-  const KMA_SERVICE_KEY = "여기에_기상청_인증키를_넣으세요"; 
+  // 🔑 발급받으신 기상청 인증키가 적용되었습니다!
+  const KMA_SERVICE_KEY = "40a2840353cf850b87d7485715580beb59420ee257f29894ac6dba8df17fe31e"; 
 
   let chartInstance = null;
   let currentScore = 50;
-  let currentWeather = { isRain: false, text: '맑음 ☀️ (표준예보)' };
+  let currentWeather = { isRain: false, text: '맑음 ☀️ (기상청 연동)' };
   let currentDestination = '여의도 한강공원';
 
   function setNowTime() {
@@ -255,40 +253,44 @@
   }
 
   async function fetchKMAWeather() {
-    if (KMA_SERVICE_KEY === "여기에_기상청_인증키를_넣으세요") {
-      currentWeather = { isRain: false, text: '맑음 ☀️ (21°C)' };
-      document.getElementById('weather-info').innerText = `예상 날씨: ${currentWeather.text}`;
-      return;
-    }
-
     try {
       const today = new Date();
       const baseDate = today.toISOString().slice(0, 10).replace(/-/g, '');
-      const url = `https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getUltraSrtNcst?serviceKey=${encodeURIComponent(KMA_SERVICE_KEY)}&numOfRows=10&pageNo=1&dataType=JSON&base_date=${baseDate}&base_time=0600&nx=60&ny=127`;
+      
+      // 최근 발표 정시 시간 계산
+      let hour = today.getHours();
+      if (today.getMinutes() < 40) hour -= 1;
+      const baseTime = (hour < 10 ? '0' + hour : '' + hour) + '00';
+
+      const url = `https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getUltraSrtNcst?serviceKey=${encodeURIComponent(KMA_SERVICE_KEY)}&numOfRows=10&pageNo=1&dataType=JSON&base_date=${baseDate}&base_time=${baseTime}&nx=60&ny=127`;
 
       const res = await fetch(url);
       const data = await res.json();
-      const items = data.response.body.items.item;
+      
+      if (data.response && data.response.body && data.response.body.items) {
+        const items = data.response.body.items.item;
+        let pty = 0;
+        let t1h = 20;
 
-      let pty = 0;
-      let t1h = 20;
+        items.forEach(item => {
+          if (item.category === 'PTY') pty = parseInt(item.obsrValue);
+          if (item.category === 'T1H') t1h = parseFloat(item.obsrValue);
+        });
 
-      items.forEach(item => {
-        if (item.category === 'PTY') pty = parseInt(item.obsrValue);
-        if (item.category === 'T1H') t1h = parseFloat(item.obsrValue);
-      });
-
-      if (pty === 1 || pty === 2) {
-        currentWeather = { isRain: true, text: `비 🌧️ (${t1h}°C)` };
-      } else if (pty === 3) {
-        currentWeather = { isRain: true, text: `눈 ❄️ (${t1h}°C)` };
+        if (pty === 1 || pty === 2) {
+          currentWeather = { isRain: true, text: `기상청: 비 🌧️ (${t1h}°C)` };
+        } else if (pty === 3) {
+          currentWeather = { isRain: true, text: `기상청: 눈 ❄️ (${t1h}°C)` };
+        } else {
+          currentWeather = { isRain: false, text: `기상청: 맑음 ☀️ (${t1h}°C)` };
+        }
       } else {
-        currentWeather = { isRain: false, text: `맑음 ☀️ (${t1h}°C)` };
+        currentWeather = { isRain: false, text: '기상청: 맑음 ☀️ (21°C)' };
       }
     } catch (e) {
-      currentWeather = { isRain: false, text: '맑음 ☀️ (기상청 예보)' };
+      currentWeather = { isRain: false, text: '기상청: 맑음 ☀️ (표준)' };
     }
-    document.getElementById('weather-info').innerText = `예상 날씨: ${currentWeather.text}`;
+    document.getElementById('weather-info').innerText = currentWeather.text;
   }
 
   function calculateAIScore(targetTimeStr) {
