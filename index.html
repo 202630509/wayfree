@@ -306,7 +306,7 @@
       const { data, error } = await _supabase
         .from('feedbacks')
         .select('score_delta')
-        .eq('place_name', place)
+        .eq('place_name', place.trim())
         .gte('created_at', oneHourAgo);
 
       if (error || !data || data.length === 0) return 0;
@@ -317,6 +317,7 @@
       // 상한선/하한선 Cap 적용 (최대 +25, 최소 -25 제한)
       return Math.min(25, Math.max(-25, totalSum));
     } catch (e) {
+      console.error("제보 조회 오류:", e);
       return 0;
     }
   }
@@ -342,7 +343,7 @@
   }
 
   async function goToResult() {
-    currentDestination = document.getElementById('dest-input').value.trim() || '여의도 한강공원';
+    currentDestination = (document.getElementById('dest-input').value || '여의도 한강공원').trim();
     const timeVal = document.getElementById('time-input').value || '지금 출발';
 
     document.getElementById('res-place').innerText = currentDestination;
@@ -384,27 +385,31 @@
     }
   }
 
-  // 📣 사용자의 현장 제보를 DB에 실시간 저장 (±10점 적용)
+  // 📣 사용자의 현장 제보를 DB에 실시간 저장 (즉시 화면 점수 갱신 보장)
   async function submitFeedback(delta) {
     closeModal();
 
     if (delta !== 0) {
+      // 1. 화면 즉시 보정 (사용자 경험 향상)
+      currentScore = Math.min(99, Math.max(10, currentScore + delta));
+      updateScoreUI(currentScore);
+      drawChart(currentScore);
+
+      // 2. Supabase DB 저장
       try {
-        await _supabase
+        const { error } = await _supabase
           .from('feedbacks')
-          .insert([{ place_name: currentDestination, score_delta: delta }]);
+          .insert([{ place_name: currentDestination.trim(), score_delta: delta }]);
+
+        if (error) console.error("Supabase 저장 오류:", error);
       } catch (e) {
         console.error("제보 저장 오류:", e);
       }
     }
 
-    currentScore = await calculateAIScore(document.getElementById('time-input').value);
-    updateScoreUI(currentScore);
-    drawChart(currentScore);
-
     const msg = delta === 0 
       ? '‘예측과 동일함’으로 제보해 주셨습니다. 감사드립니다!' 
-      : `소중한 현장 제보 감사드립니다!\n실시간 혼잡도 정보에 반영되었습니다.`;
+      : `소중한 현장 제보 감사드립니다!\n실시간 혼잡도 정보에 즉시 반영되었습니다.`;
     alert(msg);
   }
 
