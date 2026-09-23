@@ -125,6 +125,41 @@
     .guide-title { font-size: 13px; font-weight: 700; color: var(--toss-gray-600); margin-bottom: 10px; }
     .guide-step { font-size: 13px; color: var(--toss-gray-800); font-weight: 600; line-height: 1.6; display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 
+    /* 🌀 로딩 스크린 디자인 */
+    .loading-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 450px;
+      text-align: center;
+    }
+    .spinner {
+      width: 48px;
+      height: 48px;
+      border: 4px solid var(--toss-blue-light);
+      border-top: 4px solid var(--toss-blue);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 24px;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .loading-title {
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--toss-gray-900);
+      margin-bottom: 8px;
+    }
+    .loading-desc {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--toss-gray-600);
+      transition: opacity 0.3s ease;
+    }
+
     .nav-back { display: inline-flex; align-items: center; gap: 4px; color: var(--toss-gray-600); font-size: 15px; font-weight: 600; cursor: pointer; margin-bottom: 20px; border: none; background: none; }
     .place-title { font-size: 26px; font-weight: 800; color: var(--toss-gray-900); letter-spacing: -0.5px; margin-bottom: 4px; }
     .time-subtitle { font-size: 14px; color: var(--toss-gray-600); font-weight: 500; margin-bottom: 20px; }
@@ -240,13 +275,22 @@
       </div>
     </div>
 
-    <button type="button" class="btn-submit" onclick="goToResult()">혼잡도 확인하기</button>
+    <button type="button" class="btn-submit" onclick="startAnalysis()">혼잡도 확인하기</button>
 
     <div class="guide-card">
       <div class="guide-title">서비스 안내</div>
       <div class="guide-step">🌤️ 기상청 날씨 데이터 실시간 반영</div>
       <div class="guide-step">🅿️ 붐비면 근처 여유 주차장 좌표 직접 안내</div>
       <div class="guide-step">📣 사용자 실시간 제보 기반 보정 수치</div>
+    </div>
+  </div>
+
+  <!-- STEP 1.5: 로딩 화면 -->
+  <div id="step-loading" class="step-view hidden">
+    <div class="loading-container">
+      <div class="spinner"></div>
+      <div class="loading-title" id="loading-target-name">장소 분석 중</div>
+      <div class="loading-desc" id="loading-msg">기상청 날씨 데이터를 수집하고 있어요...</div>
     </div>
   </div>
 
@@ -390,21 +434,48 @@
     return Math.min(99, Math.max(10, baseScore));
   }
 
-  async function goToResult() {
+  // ⏳ 신뢰감을 주기 위한 2.5초 AI 분석 로딩 애니메이션
+  async function startAnalysis() {
     currentDestination = (document.getElementById('dest-input').value || '여의도 한강공원').trim();
-    const timeVal = document.getElementById('time-input').value || '지금 출발';
+    
+    // 1. STEP 1 은폐, 로딩 스크린 노출
+    document.getElementById('step-1').classList.add('hidden');
+    document.getElementById('step-loading').classList.remove('hidden');
+    document.getElementById('loading-target-name').innerText = `'${currentDestination}' 분석 중`;
 
+    const loadingMsgEl = document.getElementById('loading-msg');
+    
+    // 2. 백그라운드 데이터 수집 병행
+    const weatherPromise = fetchKMAWeather();
+    const scorePromise = calculateAIScore(document.getElementById('time-input').value);
+
+    // 3. 로딩 안내 문구 순차 변경 연출
+    setTimeout(() => {
+      loadingMsgEl.innerText = "시간대별 방문 패턴 및 기상 조건을 결합 중이에요...";
+    }, 900);
+
+    setTimeout(() => {
+      loadingMsgEl.innerText = "최근 1시간 내 현장 제보 데이터를 반영 중이에요...";
+    }, 1700);
+
+    // 4. 데이터 연산과 2.4초 지연을 함께 기다려 결과로 전환
+    await Promise.all([
+      weatherPromise,
+      scorePromise,
+      new Promise(resolve => setTimeout(resolve, 2400))
+    ]);
+
+    currentScore = await scorePromise;
+
+    // 5. 로딩 종료 후 결과 화면 노출
+    document.getElementById('step-loading').classList.add('hidden');
+    document.getElementById('step-2').classList.remove('hidden');
+
+    const timeVal = document.getElementById('time-input').value || '지금 출발';
     document.getElementById('res-place').innerText = currentDestination;
     document.getElementById('res-time').innerText = timeVal.replace('T', ' ') + ' 방문 예정';
 
-    await fetchKMAWeather();
-
-    currentScore = await calculateAIScore(document.getElementById('time-input').value);
     updateScoreUI(currentScore);
-
-    document.getElementById('step-1').classList.add('hidden');
-    document.getElementById('step-2').classList.remove('hidden');
-
     drawChart(currentScore);
   }
 
@@ -502,8 +573,6 @@
     if (type === 'parking') {
       title.innerText = `🅿️ '${currentDestination}' 근처 주차장`;
 
-      // 카카오맵 좌표 Direct 길찾기 구조 (목적지명, 위도, 경도)
-      // 카카오맵 링크 규칙: https://map.kakao.com/link/to/장소명,위도,경도
       let park1Name = `${currentDestination} 제1공영주차장`;
       let park1Lat = 37.5284;
       let park1Lng = 126.9332;
@@ -516,7 +585,6 @@
       let park3Lat = 37.5312;
       let park3Lng = 126.9381;
 
-      // 대표 장소 예시별 정밀 위치 좌표 매칭
       if (currentDestination.includes('남산')) {
         park1Name = "남산예장 공영주차장";
         park1Lat = 37.5584; park1Lng = 126.9882;
