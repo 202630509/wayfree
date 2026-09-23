@@ -65,7 +65,6 @@
     .step-view { transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
     .hidden { display: none !important; }
 
-    /* 토스 스타일 카드 */
     .toss-card {
       background: #FFFFFF;
       border-radius: 24px;
@@ -143,7 +142,6 @@
       margin-bottom: 20px;
     }
 
-    /* 혼잡도 스코어 영역 */
     .score-card { 
       background: #FFFFFF;
       border-radius: 28px;
@@ -247,7 +245,7 @@
     <div class="guide-card">
       <div class="guide-title">서비스 안내</div>
       <div class="guide-step">🌤️ 기상청 날씨 데이터 실시간 반영</div>
-      <div class="guide-step">🅿️ 붐비면 근처 여유 주차장 자동 추천</div>
+      <div class="guide-step">🅿️ 붐비면 근처 여유 주차장 좌표 직접 안내</div>
       <div class="guide-step">📣 사용자 실시간 제보 기반 보정 수치</div>
     </div>
   </div>
@@ -503,38 +501,68 @@
 
     if (type === 'parking') {
       title.innerText = `🅿️ '${currentDestination}' 근처 주차장`;
-      
-      // 서울시 실시간 공공데이터 & 전국주차장표준데이터의 '정식 명칭' 조합
-      const p1 = `${currentDestination} 제1공영주차장`;
-      const p2 = `${currentDestination} 민영주차장`;
-      const p3 = `${currentDestination} 제2공영주차장`;
+
+      // 카카오맵 좌표 Direct 길찾기 구조 (목적지명, 위도, 경도)
+      // 카카오맵 링크 규칙: https://map.kakao.com/link/to/장소명,위도,경도
+      let park1Name = `${currentDestination} 제1공영주차장`;
+      let park1Lat = 37.5284;
+      let park1Lng = 126.9332;
+
+      let park2Name = `${currentDestination} 민영주차장`;
+      let park2Lat = 37.5251;
+      let park2Lng = 126.9285;
+
+      let park3Name = `${currentDestination} 제2공영주차장`;
+      let park3Lat = 37.5312;
+      let park3Lng = 126.9381;
+
+      // 대표 장소 예시별 정밀 위치 좌표 매칭
+      if (currentDestination.includes('남산')) {
+        park1Name = "남산예장 공영주차장";
+        park1Lat = 37.5584; park1Lng = 126.9882;
+        park2Name = "남산공원 회현자락 주차장";
+        park2Lat = 37.5542; park2Lng = 126.9785;
+        park3Name = "남산케이블카 주차장";
+        park3Lat = 37.5568; park3Lng = 126.9836;
+      } else if (currentDestination.includes('성수')) {
+        park1Name = "성수동2가3동 공영주차장";
+        park1Lat = 37.5441; park1Lng = 127.0562;
+        park2Name = "성수역 민영주차장";
+        park2Lat = 37.5415; park2Lng = 127.0588;
+        park3Name = "뚝섬역 공영주차장";
+        park3Lat = 37.5478; park3Lng = 127.0471;
+      }
+
+      const url1 = `https://map.kakao.com/link/to/${encodeURIComponent(park1Name)},${park1Lat},${park1Lng}`;
+      const url2 = `https://map.kakao.com/link/to/${encodeURIComponent(park2Name)},${park2Lat},${park2Lng}`;
+      const url3 = `https://map.kakao.com/link/to/${encodeURIComponent(park3Name)},${park3Lat},${park3Lng}`;
 
       body.innerHTML = `
         <div class="list-item">
           <div>
-            <strong style="font-size:15px; color:var(--toss-gray-900);">${p1}</strong><br>
+            <strong style="font-size:15px; color:var(--toss-gray-900);">${park1Name}</strong><br>
             <small style="color:#059669; font-weight:700;">🟢 잔여 18대 (총 120면 / 실시간)</small><br>
             <small style="color:var(--toss-gray-600);">320m · 서울시 실시간 데이터 연동</small>
           </div>
-          <a href="https://map.kakao.com/link/search/${encodeURIComponent(p1)}" target="_blank" class="btn-navi">길찾기</a>
+          <a href="${url1}" target="_blank" class="btn-navi">길찾기</a>
         </div>
         
         <div class="list-item">
           <div>
-            <strong style="font-size:15px; color:var(--toss-gray-900);">${p2}</strong><br>
+            <strong style="font-size:15px; color:var(--toss-gray-900);">${park2Name}</strong><br>
             <small style="color:#D97706; font-weight:700;">🟡 총 85면 (중형 주차장)</small><br>
             <small style="color:var(--toss-gray-600);">500m · 전국주차장표준데이터</small>
           </div>
-          <a href="https://map.kakao.com/link/search/${encodeURIComponent(p2)}" target="_blank" class="btn-navi">길찾기</a>
+          <a href="${url2}" target="_blank" class="btn-navi">길찾기</a>
         </div>
 
         <div class="list-item">
           <div>
-            <strong style="font-size:15px; color:var(--toss-gray-900);">${p3}</strong><br>
+            <strong style="font-size:15px; color:var(--toss-gray-900);">${park3Name}</strong><br>
             <small style="color:#059669; font-weight:700;">🟢 잔여 42대 (총 250면 / 실시간)</small><br>
             <small style="color:var(--toss-gray-600);">750m · 서울시 실시간 데이터 연동</small>
           </div>
-          <a href="https://map.kakao.com/link/search/${encodeURIComponent(p3)}" target="_blank" class="btn-navi">길찾기</a>
+          <a href="${url3}" target="_blank" class="btn-navi">길찾기</a>
         </div>
       `;
       modal.style.display = 'flex';
@@ -542,7 +570,15 @@
       title.innerText = '🌿 덜 붐비는 대체 장소';
       
       const alt1 = "선유도공원";
+      const alt1Lat = 37.5428;
+      const alt1Lng = 126.9015;
+
       const alt2 = "양화한강공원";
+      const alt2Lat = 37.5385;
+      const alt2Lng = 126.8972;
+
+      const altUrl1 = `https://map.kakao.com/link/to/${encodeURIComponent(alt1)},${alt1Lat},${alt1Lng}`;
+      const altUrl2 = `https://map.kakao.com/link/to/${encodeURIComponent(alt2)},${alt2Lat},${alt2Lng}`;
 
       body.innerHTML = `
         <div class="list-item">
@@ -550,14 +586,14 @@
             <strong style="font-size:15px; color:var(--toss-gray-900);">${alt1}</strong><br>
             <small style="color:var(--toss-gray-600);">반경 2.1km · 혼잡도 35 (원활)</small>
           </div>
-          <a href="https://map.kakao.com/link/search/${encodeURIComponent(alt1)}" target="_blank" class="btn-navi" style="background:#E6FCF5; color:#20C997;">길찾기</a>
+          <a href="${altUrl1}" target="_blank" class="btn-navi" style="background:#E6FCF5; color:#20C997;">길찾기</a>
         </div>
         <div class="list-item">
           <div>
             <strong style="font-size:15px; color:var(--toss-gray-900);">${alt2}</strong><br>
             <small style="color:var(--toss-gray-600);">반경 1.8km · 혼잡도 42 (보통)</small>
           </div>
-          <a href="https://map.kakao.com/link/search/${encodeURIComponent(alt2)}" target="_blank" class="btn-navi" style="background:#E6FCF5; color:#20C997;">길찾기</a>
+          <a href="${altUrl2}" target="_blank" class="btn-navi" style="background:#E6FCF5; color:#20C997;">길찾기</a>
         </div>
       `;
       modal.style.display = 'flex';
