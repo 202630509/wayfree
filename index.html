@@ -143,7 +143,7 @@
       margin-bottom: 20px;
     }
 
-    /* 혼잡도 스코어 영역 (토스 특유의 시원한 텍스트) */
+    /* 혼잡도 스코어 영역 */
     .score-card { 
       background: #FFFFFF;
       border-radius: 28px;
@@ -203,7 +203,7 @@
     }
     .btn-go-feedback:active { background: var(--toss-gray-200); }
 
-    /* Modal Component (토스 바텀시트 느낌) */
+    /* Modal Component */
     .modal-overlay { position: fixed; top:0; left:0; right:0; bottom:0; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: flex-end; z-index: 100; backdrop-filter: blur(4px); }
     .modal-content { width: 100%; max-width: 440px; background: white; border-radius: 32px 32px 0 0; padding: 28px 24px 36px 24px; animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1); }
     @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
@@ -504,9 +504,10 @@
     if (type === 'parking') {
       title.innerText = `🅿️ '${currentDestination}' 근처 주차장`;
       
-      const p1 = `${currentDestination} 1공영주차장`;
+      // 서울시 실시간 공공데이터 & 전국주차장표준데이터의 '정식 명칭' 조합
+      const p1 = `${currentDestination} 제1공영주차장`;
       const p2 = `${currentDestination} 민영주차장`;
-      const p3 = `${currentDestination} 2공영주차장`;
+      const p3 = `${currentDestination} 제2공영주차장`;
 
       body.innerHTML = `
         <div class="list-item">
@@ -540,8 +541,8 @@
     } else if (type === 'alt') {
       title.innerText = '🌿 덜 붐비는 대체 장소';
       
-      const alt1 = "선유도 공원";
-      const alt2 = "양화 한강공원";
+      const alt1 = "선유도공원";
+      const alt2 = "양화한강공원";
 
       body.innerHTML = `
         <div class="list-item">
