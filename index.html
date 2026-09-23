@@ -3,216 +3,272 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>여유길 (WayFree) - AI 장소 혼잡도 예측 & 대체 추천</title>
+  <title>여유길 (WayFree)</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- Supabase JS SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <!-- 카카오 지도 SDK -->
   <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=357b1de1bb5522200ca16786356a3101&libraries=services"></script>
   <style>
+    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+
     :root {
-      --primary: #3B82F6;
-      --primary-dark: #1D4ED8;
-      --bg: #F1F5F9;
-      --card-bg: #FFFFFF;
-      --text-main: #0F172A;
-      --text-sub: #64748B;
-      --good: #10B981;
-      --warn: #F59E0B;
-      --danger: #EF4444;
+      --toss-blue: #3182F6;
+      --toss-blue-light: #E8F3FF;
+      --toss-gray-50: #F9FAFB;
+      --toss-gray-100: #F2F4F6;
+      --toss-gray-200: #E5E8EB;
+      --toss-gray-600: #8B95A1;
+      --toss-gray-800: #333D4B;
+      --toss-gray-900: #191F28;
+      
+      --status-good: #20C997;
+      --status-good-bg: #E6FCF5;
+      --status-warn: #FF922B;
+      --status-warn-bg: #FFF4E6;
+      --status-danger: #F03E3E;
+      --status-danger-bg: #FFF5F5;
     }
 
     *, *::before, *::after { 
       box-sizing: border-box; 
       margin: 0; 
       padding: 0; 
-      font-family: -apple-system, BlinkMacSystemFont, "Pretendard", sans-serif; 
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+      -webkit-tap-highlight-color: transparent;
     }
     
     body { 
-      background-color: var(--bg); 
-      color: var(--text-main); 
+      background-color: var(--toss-gray-100); 
+      color: var(--toss-gray-900); 
       display: flex; 
       justify-content: center; 
       min-height: 100vh; 
-      padding: 20px 12px; 
+      padding: 0;
     }
     
     .app-container { 
       width: 100%; 
       max-width: 440px; 
-      background: var(--card-bg); 
-      border-radius: 24px; 
-      padding: 28px 20px; 
-      box-shadow: 0 20px 25px -5px rgba(0,0,0,0.05); 
+      background: var(--toss-gray-50); 
+      min-height: 100vh;
+      padding: 40px 24px; 
       position: relative; 
-      overflow: hidden; 
+      display: flex;
+      flex-direction: column;
     }
 
-    .header { text-align: center; margin-bottom: 20px; }
-    .header h1 { font-size: 26px; font-weight: 900; color: var(--primary); letter-spacing: -0.5px; }
-    .header .subtitle { font-size: 13px; font-weight: 700; color: #334155; margin-top: 4px; }
-    .header .desc { font-size: 11.5px; color: var(--text-sub); margin-top: 6px; word-break: keep-all; line-height: 1.4; background: #F8FAFC; padding: 8px 12px; border-radius: 10px; border: 1px solid #E2E8F0; }
+    .header { text-align: left; margin-bottom: 32px; }
+    .header h1 { font-size: 28px; font-weight: 800; color: var(--toss-blue); letter-spacing: -0.6px; margin-bottom: 6px; }
+    .header .subtitle { font-size: 22px; font-weight: 700; color: var(--toss-gray-900); line-height: 1.3; letter-spacing: -0.4px; }
 
-    .step-view { transition: all 0.3s ease-in-out; }
+    .step-view { transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
     .hidden { display: none !important; }
 
-    .input-group { margin-bottom: 18px; width: 100%; }
-    .input-group label { display: block; font-size: 13px; font-weight: 700; color: var(--text-main); margin-bottom: 6px; }
+    /* 토스 스타일 카드 */
+    .toss-card {
+      background: #FFFFFF;
+      border-radius: 24px;
+      padding: 24px;
+      margin-bottom: 16px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.02);
+    }
+
+    .input-group { margin-bottom: 24px; }
+    .input-group label { display: block; font-size: 14px; font-weight: 700; color: var(--toss-gray-800); margin-bottom: 10px; }
     
     .input-field { 
       width: 100%; 
-      max-width: 100%;
-      padding: 14px 15px; 
-      border: 1.5px solid #CBD5E1; 
+      padding: 16px 18px; 
+      border: 1.5px solid transparent; 
+      border-radius: 16px; 
+      font-size: 16px; 
+      font-weight: 600;
+      color: var(--toss-gray-900);
+      outline: none; 
+      transition: all 0.2s; 
+      background: var(--toss-gray-100); 
+    }
+    .input-field::placeholder { color: var(--toss-gray-600); font-weight: 500; }
+    .input-field:focus { border-color: var(--toss-blue); background: #FFF; box-shadow: 0 0 0 3px var(--toss-blue-light); }
+
+    .btn-quick { 
+      width: 100%; 
+      margin-top: 10px; 
+      padding: 14px; 
+      background: var(--toss-blue-light); 
+      color: var(--toss-blue); 
+      border: none; 
       border-radius: 14px; 
       font-size: 14px; 
-      outline: none; 
-      transition: 0.2s; 
-      background: #F8FAFC; 
-      appearance: none;
-      -webkit-appearance: none;
+      font-weight: 700; 
+      cursor: pointer; 
+      transition: transform 0.1s;
     }
-    .input-field:focus { border-color: var(--primary); background: #FFF; box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
+    .btn-quick:active { transform: scale(0.98); }
 
-    .search-tip { font-size: 11px; color: var(--text-sub); margin-top: 6px; line-height: 1.4; background: #EFF6FF; padding: 8px 10px; border-radius: 8px; border-left: 3px solid var(--primary); }
-    .search-tip strong { color: var(--primary-dark); }
+    .btn-submit { 
+      width: 100%; 
+      padding: 18px; 
+      background: var(--toss-blue); 
+      color: white; 
+      border: none; 
+      border-radius: 20px; 
+      font-size: 17px; 
+      font-weight: 700; 
+      cursor: pointer; 
+      margin-top: 12px; 
+      transition: all 0.2s;
+    }
+    .btn-submit:active { transform: scale(0.98); opacity: 0.9; }
 
-    .btn-quick { width: 100%; margin-top: 8px; padding: 12px; background: #EFF6FF; color: var(--primary); border: 1px solid #BFDBFE; border-radius: 12px; font-size: 13px; font-weight: 700; cursor: pointer; }
-    .btn-submit { width: 100%; padding: 16px; background: var(--primary); color: white; border: none; border-radius: 16px; font-size: 16px; font-weight: 800; cursor: pointer; margin-top: 16px; box-shadow: 0 4px 12px rgba(59,130,246,0.25); }
+    .guide-card { background: #FFFFFF; border-radius: 20px; padding: 20px; margin-top: 12px; }
+    .guide-title { font-size: 13px; font-weight: 700; color: var(--toss-gray-600); margin-bottom: 10px; }
+    .guide-step { font-size: 13px; color: var(--toss-gray-800); font-weight: 600; line-height: 1.6; display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 
-    .guide-card { margin-top: 24px; background: #F8FAFC; border: 1px dashed #CBD5E1; border-radius: 16px; padding: 14px; }
-    .guide-title { font-size: 12px; font-weight: 800; color: #334155; margin-bottom: 8px; display: flex; align-items: center; gap: 4px; }
-    .guide-step { font-size: 11px; color: var(--text-sub); line-height: 1.5; margin-bottom: 4px; }
-
-    .nav-back { display: flex; align-items: center; gap: 6px; color: var(--text-sub); font-size: 13px; font-weight: 600; cursor: pointer; margin-bottom: 16px; border: none; background: none; }
-    .place-title { font-size: 20px; font-weight: 800; text-align: center; margin-bottom: 4px; }
-    .time-subtitle { font-size: 13px; color: var(--text-sub); text-align: center; margin-bottom: 12px; }
+    .nav-back { display: inline-flex; align-items: center; gap: 4px; color: var(--toss-gray-600); font-size: 15px; font-weight: 600; cursor: pointer; margin-bottom: 20px; border: none; background: none; }
+    .place-title { font-size: 26px; font-weight: 800; color: var(--toss-gray-900); letter-spacing: -0.5px; margin-bottom: 4px; }
+    .time-subtitle { font-size: 14px; color: var(--toss-gray-600); font-weight: 500; margin-bottom: 20px; }
 
     .weather-badge { 
       display: inline-flex; 
       align-items: center; 
-      justify-content: center;
-      gap: 6px; 
-      background: #F0F9FF; 
-      color: #0284C7; 
-      border: 1px solid #BAE6FD; 
-      padding: 6px 14px; 
-      border-radius: 20px; 
-      font-size: 12px; 
+      background: #FFFFFF; 
+      color: var(--toss-gray-800); 
+      padding: 8px 16px; 
+      border-radius: 30px; 
+      font-size: 13px; 
       font-weight: 700; 
-      margin: 0 auto 16px auto; 
+      box-shadow: 0 2px 10px rgba(0,0,0,0.03);
+      margin-bottom: 20px;
     }
-    .weather-container { text-align: center; }
 
-    .score-card { text-align: center; padding: 24px 16px; border-radius: 20px; color: white; margin-bottom: 20px; transition: background 0.3s ease; }
-    .score-num { font-size: 52px; font-weight: 900; line-height: 1; }
-    .score-status { font-size: 16px; font-weight: 700; margin-top: 8px; opacity: 0.95; }
+    /* 혼잡도 스코어 영역 (토스 특유의 시원한 텍스트) */
+    .score-card { 
+      background: #FFFFFF;
+      border-radius: 28px;
+      padding: 32px 24px;
+      text-align: center;
+      margin-bottom: 16px;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.03);
+    }
+    .score-num { font-size: 64px; font-weight: 900; letter-spacing: -1.5px; line-height: 1; }
+    .score-status-badge {
+      display: inline-block;
+      margin-top: 12px;
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-size: 15px;
+      font-weight: 700;
+    }
 
-    .action-container { display: flex; gap: 10px; margin-bottom: 20px; }
-    .btn-action { flex: 1; padding: 14px 10px; border-radius: 14px; border: none; font-size: 13px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
-    .btn-parking { background: #F1F5F9; color: #334155; }
-    .btn-alt { background: #ECFDF5; color: #047857; }
+    .action-container { display: flex; gap: 10px; margin-bottom: 16px; }
+    .btn-action { 
+      flex: 1; 
+      padding: 16px 12px; 
+      border-radius: 20px; 
+      border: none; 
+      font-size: 14px; 
+      font-weight: 700; 
+      cursor: pointer; 
+      background: #FFFFFF;
+      color: var(--toss-gray-800);
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.02);
+      transition: transform 0.1s;
+    }
+    .btn-action:active { transform: scale(0.97); }
 
-    .chart-box { background: #F8FAFC; border-radius: 16px; padding: 16px; border: 1px solid #E2E8F0; margin-bottom: 20px; }
+    .chart-box { background: #FFFFFF; border-radius: 24px; padding: 24px; margin-bottom: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.02); }
 
     .feedback-banner { 
-      background: #EFF6FF; 
-      border: 1px solid #BFDBFE; 
-      border-radius: 16px; 
-      padding: 16px; 
-      text-align: center; 
+      background: #FFFFFF; 
+      border-radius: 24px; 
+      padding: 24px; 
+      text-align: left; 
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.02);
     }
-    .feedback-banner-title { font-size: 13px; font-weight: 800; color: #1E40AF; margin-bottom: 4px; }
-    .feedback-banner-desc { font-size: 11.5px; color: #3B82F6; margin-bottom: 12px; word-break: keep-all; line-height: 1.4; }
+    .feedback-banner-title { font-size: 16px; font-weight: 800; color: var(--toss-gray-900); margin-bottom: 4px; }
+    .feedback-banner-desc { font-size: 13px; color: var(--toss-gray-600); margin-bottom: 16px; line-height: 1.4; }
     .btn-go-feedback { 
       width: 100%; 
-      padding: 12px; 
-      background: var(--primary); 
-      color: white; 
+      padding: 14px; 
+      background: var(--toss-gray-100); 
+      color: var(--toss-gray-900); 
       border: none; 
-      border-radius: 12px; 
-      font-size: 13px; 
-      font-weight: 800; 
+      border-radius: 16px; 
+      font-size: 14px; 
+      font-weight: 700; 
       cursor: pointer; 
-      box-shadow: 0 2px 6px rgba(59,130,246,0.2);
+      transition: background 0.2s;
     }
+    .btn-go-feedback:active { background: var(--toss-gray-200); }
 
-    /* Modal Component */
-    .modal-overlay { position: fixed; top:0; left:0; right:0; bottom:0; background: rgba(0,0,0,0.4); display: none; justify-content: center; align-items: flex-end; z-index: 100; }
-    .modal-content { width: 100%; max-width: 440px; background: white; border-radius: 24px 24px 0 0; padding: 24px; animation: slideUp 0.25s ease-out; }
+    /* Modal Component (토스 바텀시트 느낌) */
+    .modal-overlay { position: fixed; top:0; left:0; right:0; bottom:0; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: flex-end; z-index: 100; backdrop-filter: blur(4px); }
+    .modal-content { width: 100%; max-width: 440px; background: white; border-radius: 32px 32px 0 0; padding: 28px 24px 36px 24px; animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1); }
     @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
-    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-    .modal-title { font-size: 17px; font-weight: 800; }
-    .btn-close { border: none; background: #F1F5F9; width: 28px; height: 28px; border-radius: 50%; font-weight: bold; cursor: pointer; }
-    .list-item { padding: 12px 0; border-bottom: 1px solid #F1F5F9; display: flex; justify-content: space-between; align-items: center; }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .modal-title { font-size: 18px; font-weight: 800; color: var(--toss-gray-900); }
+    .btn-close { border: none; background: var(--toss-gray-100); width: 32px; height: 32px; border-radius: 50%; font-weight: bold; cursor: pointer; color: var(--toss-gray-600); }
+    .list-item { padding: 14px 0; border-bottom: 1px solid var(--toss-gray-100); display: flex; justify-content: space-between; align-items: center; }
     .list-item:last-child { border-bottom: none; }
-    .btn-navi { padding: 8px 12px; background: var(--primary); color: white; border-radius: 10px; font-size: 12px; font-weight: 700; text-decoration: none; display: inline-block; }
+    .btn-navi { padding: 10px 16px; background: var(--toss-blue-light); color: var(--toss-blue); border-radius: 12px; font-size: 13px; font-weight: 700; text-decoration: none; display: inline-block; }
 
     .feedback-modal-btns { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
-    .btn-fb-option { padding: 16px; border: 1.5px solid #E2E8F0; border-radius: 14px; background: #F8FAFC; font-size: 14px; font-weight: 700; cursor: pointer; text-align: left; display: flex; align-items: center; transition: all 0.2s; }
-    .btn-fb-option:hover { background: #EFF6FF; border-color: var(--primary); }
+    .btn-fb-option { padding: 18px; border: none; border-radius: 18px; background: var(--toss-gray-100); font-size: 15px; font-weight: 700; color: var(--toss-gray-900); cursor: pointer; text-align: left; display: flex; align-items: center; transition: all 0.2s; }
+    .btn-fb-option:active { background: var(--toss-gray-200); }
   </style>
 </head>
 <body>
 
 <div class="app-container">
-  <div class="header">
-    <h1>여유길</h1>
-    <div class="subtitle">AI 예측 기반 스마트 혼잡도 지도</div>
-    <div class="desc">
-      방문하려는 장소의 <strong>실시간/미래 혼잡도</strong>를 AI로 미리 예측하고, 덜 붐비는 시간대와 대체 장소를 안내해 드립니다!
-    </div>
-  </div>
-
   <!-- STEP 1: 입력 폼 -->
   <div id="step-1" class="step-view">
-    <div class="input-group">
-      <label>🔍 어디로 가시나요?</label>
-      <input type="text" id="dest-input" class="input-field" placeholder="예: 여의도 한강공원, 성수동 런던뮤지엄, 강남역">
-      <div class="search-tip">
-        💡 <strong>무엇이든 검색 가능해요!</strong><br>
-        • 장소/건물명 (예: 롯데월드, 남산타워)<br>
-        • 맛집/카페 이름 (예: 성수다락, 성심당)<br>
-        • 도로명/지번 주소 (예: 테헤란로 123)
+    <div class="header">
+      <h1>여유길</h1>
+      <div class="subtitle">어디로 가시나요?<br>AI가 혼잡도를 예측해드려요.</div>
+    </div>
+
+    <div class="toss-card">
+      <div class="input-group">
+        <label>목적지 검색</label>
+        <input type="text" id="dest-input" class="input-field" placeholder="장소, 건물명, 카페, 주소 검색">
+      </div>
+
+      <div class="input-group" style="margin-bottom:0;">
+        <label>방문 시간</label>
+        <input type="datetime-local" id="time-input" class="input-field">
+        <button type="button" class="btn-quick" onclick="setNowTime()">⚡ 30분 뒤 출발</button>
       </div>
     </div>
 
-    <div class="input-group">
-      <label>⏰ 언제 방문 예정이신가요?</label>
-      <input type="datetime-local" id="time-input" class="input-field">
-      <button type="button" class="btn-quick" onclick="setNowTime()">⚡ 30분 이내 방문 (지금 바로 출발)</button>
-    </div>
-
-    <button type="button" class="btn-submit" onclick="goToResult()">AI 혼잡도 분석 & 대체장소 찾기</button>
+    <button type="button" class="btn-submit" onclick="goToResult()">혼잡도 확인하기</button>
 
     <div class="guide-card">
-      <div class="guide-title">💡 여유길 200% 활용 가이드</div>
-      <div class="guide-step">1. 방문할 장소와 시간을 입력하고 AI 분석을 시작합니다.</div>
-      <div class="guide-step">2. 실시간 날씨와 시간대 데이터를 반영한 혼잡도를 확인합니다.</div>
-      <div class="guide-step">3. 붐빌 경우, <strong>인근 여유 주차장</strong>이나 <strong>덜 붐비는 대체 장소</strong>로 바로 안내받습니다!</div>
+      <div class="guide-title">서비스 안내</div>
+      <div class="guide-step">🌤️ 기상청 날씨 데이터 실시간 반영</div>
+      <div class="guide-step">🅿️ 붐비면 근처 여유 주차장 자동 추천</div>
+      <div class="guide-step">📣 사용자 실시간 제보 기반 보정 수치</div>
     </div>
   </div>
 
   <!-- STEP 2: 결과 화면 -->
   <div id="step-2" class="step-view hidden">
-    <button class="nav-back" onclick="goToInput()">← 다른 장소 검색하기</button>
+    <button class="nav-back" onclick="goToInput()">← 검색으로 돌아가기</button>
     
     <div class="place-title" id="res-place">여의도 한강공원</div>
     <div class="time-subtitle" id="res-time">방문 예정</div>
 
-    <div class="weather-container">
-      <div class="weather-badge" id="weather-info">🌤️ 실시간 기상청 날씨 분석 중...</div>
-    </div>
+    <div class="weather-badge" id="weather-info">🌤️ 날씨 불러오는 중...</div>
 
     <div id="res-card" class="score-card">
       <div class="score-num" id="res-score">--</div>
-      <div class="score-status" id="res-status">AI 분석 중...</div>
+      <div id="res-status-badge" class="score-status-badge">AI 분석 중...</div>
     </div>
 
     <div id="action-area" class="action-container">
-      <button class="btn-action btn-parking" onclick="openModal('parking')">🅿️ 근처 주차장</button>
-      <button class="btn-action btn-alt" onclick="openModal('alt')">🌿 덜 붐비는 장소</button>
+      <button class="btn-action" onclick="openModal('parking')">🅿️ 근처 주차장</button>
+      <button class="btn-action" onclick="openModal('alt')">🌿 덜 붐비는 장소</button>
     </div>
 
     <div class="chart-box">
@@ -220,9 +276,9 @@
     </div>
 
     <div class="feedback-banner">
-      <div class="feedback-banner-title">🗣️ 현장에 계신가요?</div>
-      <div class="feedback-banner-desc">다른 사용자들이 더 정확한 정보를 얻을 수 있도록 현장 상황을 제보해 주세요!</div>
-      <button class="btn-go-feedback" onclick="openModal('feedback')">실시간 현장 제보하러 가기 📣</button>
+      <div class="feedback-banner-title">지금 현장에 계신가요?</div>
+      <div class="feedback-banner-desc">실제 혼잡도를 알려주시면 다른 분들에게 도움이 됩니다.</div>
+      <button class="btn-go-feedback" onclick="openModal('feedback')">현장 상황 제보하기</button>
     </div>
   </div>
 </div>
@@ -299,7 +355,6 @@
     document.getElementById('weather-info').innerText = currentWeather.text;
   }
 
-  // ⏳ 최근 1시간 이내 제보 합산 + 상한선 Limit (±25) 적용
   async function getRecentFeedbackAdjustment(place) {
     try {
       const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
@@ -311,13 +366,9 @@
 
       if (error || !data || data.length === 0) return 0;
 
-      // 1시간 내 전체 제보 보정값 합산
       const totalSum = data.reduce((acc, cur) => acc + cur.score_delta, 0);
-
-      // 상한선/하한선 Cap 적용 (최대 +25, 최소 -25 제한)
       return Math.min(25, Math.max(-25, totalSum));
     } catch (e) {
-      console.error("제보 조회 오류:", e);
       return 0;
     }
   }
@@ -335,7 +386,6 @@
     if (isWeekend) baseScore += 15;
     if (currentWeather.isRain) baseScore -= 20;
 
-    // Supabase에서 상한선(±25)이 제한된 최근 1시간 제보값 반영
     const feedbackDelta = await getRecentFeedbackAdjustment(currentDestination);
     baseScore += feedbackDelta;
 
@@ -361,47 +411,45 @@
   }
 
   function updateScoreUI(score) {
-    const card = document.getElementById('res-card');
-    card.style.display = 'block';
-    
     const scoreEl = document.getElementById('res-score');
-    const statusEl = document.getElementById('res-status');
+    const badgeEl = document.getElementById('res-status-badge');
     const actionArea = document.getElementById('action-area');
 
     scoreEl.innerText = score;
 
     if (score <= 35) {
-      card.style.background = 'var(--good)';
-      statusEl.innerText = '원활 (여유로움 🟢)';
+      scoreEl.style.color = "var(--status-good)";
+      badgeEl.style.background = "var(--status-good-bg)";
+      badgeEl.style.color = "var(--status-good)";
+      badgeEl.innerText = '여유로워요 🟢';
       actionArea.style.display = 'none';
     } else if (score <= 65) {
-      card.style.background = 'var(--warn)';
-      statusEl.innerText = '보통 (일반적 🟡)';
+      scoreEl.style.color = "var(--status-warn)";
+      badgeEl.style.background = "var(--status-warn-bg)";
+      badgeEl.style.color = "var(--status-warn)";
+      badgeEl.innerText = '보통이에요 🟡';
       actionArea.style.display = 'none';
     } else {
-      card.style.background = 'var(--danger)';
-      statusEl.innerText = score >= 85 ? '매우 혼잡 (주차 난항 🔴)' : '혼잡 (주차 주의 🟠)';
+      scoreEl.style.color = "var(--status-danger)";
+      badgeEl.style.background = "var(--status-danger-bg)";
+      badgeEl.style.color = "var(--status-danger)";
+      badgeEl.innerText = score >= 85 ? '매우 붐벼요 🔴' : '붐비는 편이에요 🟠';
       actionArea.style.display = 'flex';
     }
   }
 
-  // 📣 사용자의 현장 제보를 DB에 실시간 저장 (즉시 화면 점수 갱신 보장)
   async function submitFeedback(delta) {
     closeModal();
 
     if (delta !== 0) {
-      // 1. 화면 즉시 보정 (사용자 경험 향상)
       currentScore = Math.min(99, Math.max(10, currentScore + delta));
       updateScoreUI(currentScore);
       drawChart(currentScore);
 
-      // 2. Supabase DB 저장
       try {
-        const { error } = await _supabase
+        await _supabase
           .from('feedbacks')
           .insert([{ place_name: currentDestination.trim(), score_delta: delta }]);
-
-        if (error) console.error("Supabase 저장 오류:", error);
       } catch (e) {
         console.error("제보 저장 오류:", e);
       }
@@ -427,17 +475,23 @@
       data: {
         labels: ['-2시간', '-1시간', '예정시간', '+1시간', '+2시간'],
         datasets: [{
-          label: '혼잡도 추이',
+          label: '혼잡도',
           data: [Math.max(10, score - 18), Math.max(10, score - 7), score, Math.min(99, score + 10), Math.max(10, score - 12)],
-          borderColor: '#3B82F6',
-          backgroundColor: 'rgba(59, 130, 246, 0.1)',
+          borderColor: '#3182F6',
+          borderWidth: 3,
+          backgroundColor: 'rgba(49, 130, 246, 0.08)',
           fill: true,
-          tension: 0.35
+          tension: 0.4,
+          pointRadius: 4,
+          pointBackgroundColor: '#3182F6'
         }]
       },
       options: {
         plugins: { legend: { display: false } },
-        scales: { y: { min: 0, max: 100 } }
+        scales: { 
+          x: { grid: { display: false } },
+          y: { min: 0, max: 100, grid: { color: '#F2F4F6' } } 
+        }
       }
     });
   }
@@ -448,7 +502,7 @@
     const body = document.getElementById('modal-body');
 
     if (type === 'parking') {
-      title.innerText = `🅿️ '${currentDestination}' 근처 주차장 정보`;
+      title.innerText = `🅿️ '${currentDestination}' 근처 주차장`;
       
       const p1 = `${currentDestination} 1공영주차장`;
       const p2 = `${currentDestination} 민영주차장`;
@@ -457,27 +511,27 @@
       body.innerHTML = `
         <div class="list-item">
           <div>
-            <strong>${p1}</strong><br>
+            <strong style="font-size:15px; color:var(--toss-gray-900);">${p1}</strong><br>
             <small style="color:#059669; font-weight:700;">🟢 잔여 18대 (총 120면 / 실시간)</small><br>
-            <small style="color:#64748B">320m · 서울시 실시간 데이터 연동</small>
+            <small style="color:var(--toss-gray-600);">320m · 서울시 실시간 데이터 연동</small>
           </div>
           <a href="https://map.kakao.com/link/search/${encodeURIComponent(p1)}" target="_blank" class="btn-navi">길찾기</a>
         </div>
         
         <div class="list-item">
           <div>
-            <strong>${p2}</strong><br>
+            <strong style="font-size:15px; color:var(--toss-gray-900);">${p2}</strong><br>
             <small style="color:#D97706; font-weight:700;">🟡 총 85면 (중형 주차장)</small><br>
-            <small style="color:#64748B">500m · 전국주차장표준데이터</small>
+            <small style="color:var(--toss-gray-600);">500m · 전국주차장표준데이터</small>
           </div>
           <a href="https://map.kakao.com/link/search/${encodeURIComponent(p2)}" target="_blank" class="btn-navi">길찾기</a>
         </div>
 
         <div class="list-item">
           <div>
-            <strong>${p3}</strong><br>
+            <strong style="font-size:15px; color:var(--toss-gray-900);">${p3}</strong><br>
             <small style="color:#059669; font-weight:700;">🟢 잔여 42대 (총 250면 / 실시간)</small><br>
-            <small style="color:#64748B">750m · 서울시 실시간 데이터 연동</small>
+            <small style="color:var(--toss-gray-600);">750m · 서울시 실시간 데이터 연동</small>
           </div>
           <a href="https://map.kakao.com/link/search/${encodeURIComponent(p3)}" target="_blank" class="btn-navi">길찾기</a>
         </div>
@@ -492,24 +546,24 @@
       body.innerHTML = `
         <div class="list-item">
           <div>
-            <strong>${alt1}</strong><br>
-            <small style="color:#64748B">반경 2.1km · 혼잡도 35 (원활)</small>
+            <strong style="font-size:15px; color:var(--toss-gray-900);">${alt1}</strong><br>
+            <small style="color:var(--toss-gray-600);">반경 2.1km · 혼잡도 35 (원활)</small>
           </div>
-          <a href="https://map.kakao.com/link/search/${encodeURIComponent(alt1)}" target="_blank" class="btn-navi" style="background:#10B981;">길찾기</a>
+          <a href="https://map.kakao.com/link/search/${encodeURIComponent(alt1)}" target="_blank" class="btn-navi" style="background:#E6FCF5; color:#20C997;">길찾기</a>
         </div>
         <div class="list-item">
           <div>
-            <strong>${alt2}</strong><br>
-            <small style="color:#64748B">반경 1.8km · 혼잡도 42 (보통)</small>
+            <strong style="font-size:15px; color:var(--toss-gray-900);">${alt2}</strong><br>
+            <small style="color:var(--toss-gray-600);">반경 1.8km · 혼잡도 42 (보통)</small>
           </div>
-          <a href="https://map.kakao.com/link/search/${encodeURIComponent(alt2)}" target="_blank" class="btn-navi" style="background:#10B981;">길찾기</a>
+          <a href="https://map.kakao.com/link/search/${encodeURIComponent(alt2)}" target="_blank" class="btn-navi" style="background:#E6FCF5; color:#20C997;">길찾기</a>
         </div>
       `;
       modal.style.display = 'flex';
     } else if (type === 'feedback') {
       title.innerText = '📣 실시간 현장 상황 제보';
       body.innerHTML = `
-        <div style="font-size: 12px; color: #64748B; margin-bottom: 12px;">
+        <div style="font-size: 14px; color: var(--toss-gray-600); margin-bottom: 16px;">
           현재 <strong>'${currentDestination}'</strong>의 실제 혼잡도는 어떤가요?
         </div>
         <div class="feedback-modal-btns">
